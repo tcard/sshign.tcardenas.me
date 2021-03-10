@@ -27,13 +27,13 @@
 
 <textarea id="verify-signer" placeholder="github.com/someone, or a SSH key like ~/.ssh/id_rsa.pub" rows="5" cols="40">github.com/</textarea>
 
-<p>... sign ...</p>
+<p>... <strong>sign</strong> ...</p>
 
 <textarea id="verify-message" placeholder="message" rows="5" cols="40"></textarea>
 
 <p><small>Or files?</small> <input type="file" id="verify-files" multiple><button onclick="clearFileInput(event)">Clear</button></p>
 
-<p>... with signature ...</p>
+<p>... with <strong>signature</strong> ...</p>
 
 <textarea id="verify-signature" rows="5" cols="40"></textarea>
 
@@ -49,29 +49,29 @@
 
 <h2>Sign</h2>
 
-<p>I'm...</p>
+<p><strong>I am</strong>...</p>
 
 <textarea id="sign-signer" placeholder="github.com/your-username, or a SSH key like ~/.ssh/id_rsa.pub" rows="5" cols="40">github.com/</textarea>
 
-<p>... and I'm signing...</p>
+<p>... and I'm <strong>signing</strong>...</p>
 
 <textarea id="sign-message" placeholder="message" rows="5" cols="40"></textarea>
 
 <p><small>Or files?</small> <input type="file" id="sign-files" multiple><button onclick="clearFileInput(event)">Clear</button></p>
 
-<p>... with my key ...</p>
+<p>... with my <strong>key</strong> ...</p>
 
 <textarea id="sign-key" placeholder="Your SSH private key, e. g. ~/.ssh/id_rsa" autocomplete="off" rows="5" cols="40"></textarea>
 
 <p><small>Or take it from this file:</small> <input type="file" id="sign-key-file"><button onclick="clearFileInput(event)">Clear</button></p>
 
-<p><small>... whose passphrase, if not empty, is... </small></p>
+<p><small>... whose <strong>passphrase</strong>, if not empty, is... </small></p>
 
 <p><input type="password" placeholder="Passphrase" id="sign-passphrase"></p>
 
 <p><small><strong>Never leaves your browser!</strong> No need to trust; open <a href="">this page</a> in incognito mode while offline.</small></p>
 
-<p>... as proven by this URL:</p>
+<p>... as <strong>proven</strong> by this URL:</p>
 
 <p id="sign-feedback"></p>
 
