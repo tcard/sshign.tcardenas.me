@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="utf-8">
+<title>sshign — Sign messages and files with SSH keys from GitHub</title>
+</head>
+
+<body>
+
+<nav>
+<ul>
+    <li><a href="#verify">Verify a signature</a></li>
+    <li><a href="#sign">Sign</a></li>
+    <li><a href="#about">About</a></li>
+</ul>
+</nav>
+
+<hr>
+
+<section id="verify">
+
+<h2>Verify a signature</h2>
+
+<p>Did...</p>
+
+<textarea id="verify-signer" placeholder="github.com/someone, or a SSH key like ~/.ssh/id_rsa.pub" rows="5" cols="40">github.com/</textarea>
+
+<p>... sign ...</p>
+
+<textarea id="verify-message" placeholder="message" rows="5" cols="40"></textarea>
+
+<p><small>Or files?</small> <input type="file" id="verify-files" multiple><button onclick="clearFileInput(event)">Clear</button></p>
+
+<p>... with signature ...</p>
+
+<textarea id="verify-signature" rows="5" cols="40"></textarea>
+
+<p>... ?</p>
+
+<p id="verify-feedback"></p>
+
+</section>
+
+<hr>
+
+<section id="sign">
+
+<h2>Sign</h2>
+
+<p>I'm...</p>
+
+<textarea id="sign-signer" placeholder="github.com/your-username, or a SSH key like ~/.ssh/id_rsa.pub" rows="5" cols="40">github.com/</textarea>
+
+<p>... and I'm signing...</p>
+
+<textarea id="sign-message" placeholder="message" rows="5" cols="40"></textarea>
+
+<p><small>Or files?</small> <input type="file" id="sign-files" multiple><button onclick="clearFileInput(event)">Clear</button></p>
+
+<p>... with my key ...</p>
+
+<p><small><strong>Never leaves your browser!</strong> No need to trust; open <a href="">this page</a> in incognito mode while offline.</small></p>
+
+<textarea id="sign-key" placeholder="Your SSH private key, e. g. ~/.ssh/id_rsa" autocomplete="off" rows="5" cols="40"></textarea>
+
+<p><small>Or take it from this file:</small> <input type="file" id="sign-key-file"><button onclick="clearFileInput(event)">Clear</button></p>
+
+<p>... whose passphrase, if not empty, is...</p>
+
+<p><input type="password" placeholder="Passphrase" id="sign-passphrase"></p>
+
+<p>... as proven by this URL:</p>
+
+<p id="sign-feedback"></p>
+
+</section>
+
+<hr>
+
+<footer id="about">
+
+<h2>About</h2>
+
+<p>Sign, verify and encrypt using publicly available SSH keys, right in your browser!</p>
+
+<p>While GPG isn't that common, and is a pain, everybody with a GitHub account should have a SSH key. This program makes it easy to sign things with it.</p>
+
+<p>Note that <strong>no server</strong> is involved; everything happens in your browser.</p>
+
+<p><strong>Disclaimer:</strong> I'm not a crypto expert. This program hasn't been audited. No guarantees.</p>
+
+<p><a href="https://ko-fi.com/tcard">Buy me a Coke, if you feel like it!</a></p>
+
+<p><a href="https://github.com/tcard/sshign.tcardenas.me">Source code on GitHub</a></p>
+
+</footer>
+
+<script src="wasm_exec.js"></script>
+<script>
+const go = new Go(); // Defined in wasm_exec.js
+const WASM_URL = 'sshign.wasm';
+
+let wasmLoaded = false;
+let onWASMLoaded = [];
+let fromWASM;
+function onWASM(obj) {
+	go.run(obj.instance);
+    wasmLoaded = true;
+    fromWASM = window.fromWASM;
+    onWASMLoaded.forEach(f => f());
+};
+
+if ('instantiateStreaming' in WebAssembly) {
+	WebAssembly.instantiateStreaming(fetch(WASM_URL), go.importObject).then(onWASM);
+} else {
+	fetch(WASM_URL).then(resp =>
+		resp.arrayBuffer()
+	).then(bytes =>
+		WebAssembly.instantiate(bytes, go.importObject).then(onWASM)
+	);
+}
+
+window.addEventListener("load", () => {
+    setupVerify();
+    setupSign();
+});
+
+function setupVerify() {
+    const inputs = {
+        signer: document.getElementById('verify-signer'),
+        message: document.getElementById('verify-message'),
+        files: document.getElementById('verify-files'),
+        signature: document.getElementById('verify-signature'),
+    };
+    const feedback = document.getElementById('verify-feedback');
+
+    const query = new URLSearchParams(window.location.search);
+    ['signer', 'message', 'signature'].forEach(k => {
+        if (query.get(k)) {
+            inputs[k].value = query.get(k);
+        }
+    });
+
+    const setFeedback = (message) => {
+        feedback.innerText = message;
+    };
+
+    const handleChange = async (ev) => {
+        if (!wasmLoaded) {
+            setFeedback('⏳ Setting things up...');
+            return;
+        }
+
+        await handleInputFromFilesOrText(ev, inputs.files, inputs.message, async (files) => {
+            return await hashFiles(files);
+        });
+
+        if (
+            inputs.signer.value.match(/^\s*$/) ||
+            inputs.message.value.match(/^\s*$/) ||
+            inputs.signature.value.match(/^\s*$/) 
+        ) {
+            setFeedback('');
+            return;
+        };
+
+        const feedback = await verify(setFeedback, inputs.signer.value, inputs.message.value, inputs.signature.value);
+        if (feedback) {
+            setFeedback(`❌ ${feedback}`);
+            return;
+        }
+
+        setFeedback(`✅ Yes!`);
+        const query = new URLSearchParams();
+        query.set('signer', inputs.signer.value);
+        query.set('message', inputs.message.value);
+        query.set('signature', inputs.signature.value);
+        window.history.replaceState('', '', `${location.pathname}?${query}`);
+    };
+
+    for (let i in inputs) {
+        inputs[i].onchange = handleChange;
+    }
+    onWASMLoaded.push(handleChange);
+}
+
+function setupSign() {
+    const inputs = {
+        signer: document.getElementById('sign-signer'),
+        message: document.getElementById('sign-message'),
+        files: document.getElementById('sign-files'),
+        key: document.getElementById('sign-key'),
+        keyFile: document.getElementById('sign-key-file'),
+        passphrase: document.getElementById('sign-passphrase'),
+    };
+    const feedback = document.getElementById('sign-feedback');
+
+    const setFeedback = (f) => {
+        if (typeof f === 'string') {
+            feedback.innerText = f;
+        } else {
+            feedback.innerHTML = '';
+            feedback.appendChild(f);
+        }
+    };
+
+    const handleChange = async (ev) => {
+        if (!wasmLoaded) {
+            setFeedback('⏳ Setting things up...');
+            return;
+        }
+
+        await handleInputFromFilesOrText(ev, inputs.files, inputs.message, async (files) => {
+            return await hashFiles(files);
+        });
+
+        let key = inputs.key.value;
+        inputs.key.disabled = inputs.keyFile.files.length > 0;
+        if (inputs.keyFile.files.length > 0) {
+            inputs.key.value = '';
+            key = await inputs.keyFile.files[0].text();
+        }
+
+        if (
+            inputs.signer.value.match(/^\s*$/) ||
+            inputs.message.value.match(/^\s*$/) ||
+            key.match(/^\s*$/)
+        ) {
+            setFeedback('');
+            return;
+        };
+
+        setFeedback('⏳ Signing...');
+
+        let { signature, feedback } = fromWASM.sign(key, inputs.passphrase.value, inputs.message.value);
+        if (feedback) {
+            setFeedback(`❌ ${feedback}`);
+            return;
+        }
+
+        feedback = await verify(setFeedback, inputs.signer.value, inputs.message.value, signature);
+        if (feedback) {
+            setFeedback(`❌ Couldn't verify signature`);
+            return;
+        }
+
+        const query = new URLSearchParams();
+        query.set('signer', inputs.signer.value);
+        query.set('message', inputs.message.value);
+        query.set('signature', signature);
+        const url = `${location.pathname}?${query}`;
+        window.history.replaceState('', '', url);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.innerText = url;
+        setFeedback(a);
+    };
+
+    for (let i in inputs) {
+        inputs[i].onchange = handleChange;
+    }
+    onWASMLoaded.push(handleChange);
+}
+
+const verify = async (setFeedback, signer, message, signature) => {
+    const foundGitHub = signer.match(/^\s*github.com\/([^\/\s]+)\s*$/);
+    if (foundGitHub) {
+        setFeedback('⏳ Fetching key from GitHub...');
+        let res = await fetch(`https://api.allorigins.win/get?url=https://github.com/${foundGitHub[1]}.keys`);
+        let body;
+        if (!res.ok || (body = await res.json()).status.http_code >= 500) {
+            console.error('Fetching key from GitHub', body);
+            setFeedback('❌ Error fetching keys from GitHub');
+        } else if (body && body.status.http_code >= 400) {
+            setFeedback('❌ User keys not found in GitHub');
+            return;
+        }
+        signer = body.contents;
+    }
+    setFeedback('⏳ Verifying...');
+
+    return fromWASM.verify(signer, message, signature);
+}
+
+const clearFileInput = (ev) => {
+    if (ev.target.previousSibling.files.length == 0) {
+        return;
+    }
+    ev.target.previousSibling.value = '';
+    ev.target.previousSibling.onchange(ev);
+}
+
+const handleInputFromFilesOrText = async (ev, filesInput, textInput, filesToText) => {
+    const files = filesInput.files;
+    if (
+        (files.length > 0 && textInput.value == '')
+        || (ev && (ev.target == filesInput || (
+            (ev.target instanceof HTMLButtonElement)
+            && ev.target.previousSibling == filesInput
+        ))) // cleared
+    ) {
+        textInput.disabled = files.length > 0;
+        textInput.value = await filesToText(files);
+    }
+}
+
+const hashFiles = async (files) => {
+    const hashes = [];
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const hash = fromWASM.hash(new Uint8Array(await file.arrayBuffer()));
+        hashes.push(`${file.name} - ${hash}`);
+    }
+    return hashes.join('\n');
+};
+
+</script>
+</body>
+
+</html>
+
