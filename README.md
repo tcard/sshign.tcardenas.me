@@ -1,6 +1,6 @@
 https://sshign.tcardenas.me
 
-<p>Sign, verify and encrypt using publicly available SSH keys, right in your browser!</p>
+<p>Sign and verify using publicly available SSH keys, right in your browser!</p>
 
 <p>While GPG isn't that common, and is a pain, everybody with a GitHub account should have a SSH key. This program makes it easy to sign things with it.</p>
 

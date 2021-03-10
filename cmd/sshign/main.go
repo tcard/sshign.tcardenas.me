@@ -14,7 +14,7 @@ import (
 func main() {
 	app := &cli.App{
 		Name:  "sshign",
-		Usage: "sign, verify and encrypt with SSH keys",
+		Usage: "sign and verify with SSH keys",
 		Commands: []*cli.Command{{
 			Name: "sign",
 			Flags: []cli.Flag{
